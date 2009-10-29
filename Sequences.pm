@@ -78,6 +78,25 @@ sub get_read_lengths{
 	}
 	return \%hash;
 }
+sub split_line_in_two{
+	my $line = shift;
+
+	if (length $line % 2 eq 0 ){
+
+		my $line1 = substr($line, 0, ($line / 2);
+		my $line2 = substr($line, ($line / 2), $line / 2);
+
+		return ($line1, $line2);
+	}
+	else {
+
+		return 0;
+
+	}
+
+}
+
+
 sub remove_adapter_3{ ##removes an adapter by exact match, adapter may have extra nt in read ... so returns chopped seq and  pos of adapter match  
     my $seq = shift;
     my $adapter = shift;

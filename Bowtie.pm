@@ -99,3 +99,92 @@ sub mismatches{
 
 
 1;
+
+
+=head1 NAME
+
+Bowtie - module that creates object representing Bowtie alignment files
+
+=head1 AUTHOR
+
+Dan MacLean (dan.maclean@tsl.ac.uk)
+
+=head1 SYNOPSIS
+
+	use Solexa::Bowtie;
+	my $bwt = new bowtie($bowtie_line);
+	print $bwt->readname; #prints out the reads name in this alignment
+	print $bwt->readseq; #prints the reads sequence
+
+=head1 DESCRIPTION
+
+Bowtie is an NGS alignment program. This module creates an object that allows you to access the individual parts of the alignment
+entry very easily. To create the object you must provide it with a single line from the Bowtie output file. This module is really 
+designed to be used with the Solexa::Parser module that will create the objects automatically. Further methods will be created 
+soon.
+
+=head1 METHODS
+
+=over
+
+=item new(line)
+
+Creates a new Bowtie object
+
+	$line = 'line-from-a-bowtie-file';
+	$bwt = new Bowtie($line);
+
+=item readname()
+
+Returns the readname of the alignment
+
+	print $readname->readname;   #prints the id of the read in the alignment'
+
+=item strand()
+
+Returns the strand of the alignment
+
+	print $bwt->strand;
+
+=item targetname()
+
+Returns the name of the target
+
+	print $bwt->targetname;
+
+=item alignstart()
+
+Returns the start of the alignment on the reference
+
+	print $bwt->alignstart();
+
+=item readseq()
+
+Returns the sequence of the read
+
+	print $bwt->readseq()
+
+=item readqual()
+
+Returns the read qualities;
+
+	print $bwt->readqual;
+
+=item other_alignments()
+
+Returns the number of other alignments this read is involved in
+
+	print $bwt->other_alignments;
+
+=item mismatches()
+
+Returns a hash describing any mismatches that occured between the read and the reference in this alignment, if no mismatches occur
+returns 0
+
+	my %mismatches = $bwt->mismatches;
+	--more detail Daniel!--
+
+=back
+
+=head1 SEE ALSO
+Solexa::Parser
