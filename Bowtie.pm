@@ -18,6 +18,7 @@ $VERSION = 0.1;
 sub new {
     my $class = shift;
     my $line = shift || die "No alignment\n\n";
+	chomp $line;
     my $self = {};
 
     my @tmp = split(/\t/,$line);
@@ -31,19 +32,26 @@ sub new {
 #	warn $tmp[3], "\n";
     $$self{'_number_of_other_alignments'} = $tmp[6];  #|| die "missing data";
 
-    if ($tmp[7] =~ m/\w+/){
-	my %subs;
+    if (defined $tmp[7] and $tmp[7] =~ m/\w+/){
+		my %subs;
 
-	my @tmp2 = split(/,/,$tmp[7]);
-	foreach my $t (@tmp2){
-	    my @tmp3 = split(/:/,$t);
-	    my @tmp4 = split(/>/,$tmp3[1]);
-	    $subs{$tmp3[0]}{$tmp4[0]}= $tmp4[1];
-	    $$self{'_mismatches'} = \%subs;
-        }
-    }
+		my @tmp2 = split(/,/,$tmp[7]);
+		foreach my $t (@tmp2){
+	    	my @tmp3 = split(/:/,$t);
+	    	my @tmp4 = split(/>/,$tmp3[1]);
+			if ($tmp[1] eq '+'){
+				my $offset = $tmp3[0] + $tmp[3];
+	    			$subs{$offset}{$tmp4[0]}= $tmp4[1];
+			}
+        	else{
+				my $offset = ($tmp[3] + length($tmp[4])) - ($tmp3[0] + 1);
+				$subs{$offset}{$tmp4[0]}= $tmp4[1];
+			}
+		}	
+	   	$$self{'_mismatches'} = \%subs;
+	}
     else{
-	$$self{'_mismatches'} = 'None';
+		$$self{'_mismatches'} = 'None';
     }
     
     bless $self, $class;
@@ -71,6 +79,11 @@ sub alignstart{
     my $self = shift;
     return $$self{'_alignment_start'};
 }
+sub alignstop {
+	my $self = shift;
+	my $length = $self->alignstart + length( $self->readseq);
+	return $length;
+}
 
 sub readseq{
     my $self = shift;
@@ -93,7 +106,7 @@ sub mismatches{
 
     }
     else{
-	return \%{$$self{'_mismatches'}};
+	return %{$$self{'_mismatches'}};
     }
 }
 
@@ -158,6 +171,12 @@ Returns the start of the alignment on the reference
 
 	print $bwt->alignstart();
 
+=item alignstop()
+
+Returns the stop position of the alignment on the reference
+
+	print $bwt->alignstop();
+
 =item readseq()
 
 Returns the sequence of the read
@@ -179,10 +198,19 @@ Returns the number of other alignments this read is involved in
 =item mismatches()
 
 Returns a hash describing any mismatches that occured between the read and the reference in this alignment, if no mismatches occur
-returns 0
+returns the string 'None'
 
 	my %mismatches = $bwt->mismatches;
-	--more detail Daniel!--
+
+The hash returned has as keys the positions in which the read differs from the reference. The nucleotide number returned is that in the reference 
+DNA, not the position in the read. There are some oddities in the Bowtie output, such as when a read matches the negative strand the mismatch read
+must be read from the opposite end of the read. The hash looks like this...
+
+	%mismatches{
+		'137' => {'A' => 'G'},
+		'124' => {'C => 'T'}
+		}
+
 
 =back
 
