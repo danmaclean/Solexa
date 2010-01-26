@@ -466,6 +466,27 @@ sub nt_coverage{ ## returns hash of number of each nt called at a position
     return %t;
 
 }
+sub get_consensus{
+	my $self = shift;
+	my $contig = shift;
+	my $position = shift;
+	
+	my %cov = $self->nt_coverage($contig,$position);
+	my $max = 0;
+	my $consensus = 'none';
+	foreach my $nt (keys %cov){
+		if ($cov{$nt} > $max){
+			$consensus = $nt;
+		} 
+	}
+	foreach my $nt (keys %cov){
+		if ($cov{$nt} == $max){
+			$consensus = $consensus .'/'. $nt;
+		} 
+	}	
+	return $consensus;
+	
+}
 
 sub average_depth{ ## returns average depth of coverage over all contigs
     my $self = shift;
