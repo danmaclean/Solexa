@@ -1069,6 +1069,10 @@ Returns hash with nucleotides as keys and number of times that nucleotide called
 
 	my %coverage = $pileup->nt_cpverage('contig1', 1234);
 
+=item get_consensus(contig, position)
+
+Returns a string of the consensus nucleotide, a / separated list if there is ambiguity and 'none' if there is no coverage
+
 =item average_depth
 
 Returns average depth of coverage over all contigs

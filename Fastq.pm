@@ -23,7 +23,22 @@ sub new {
 	$$self{'quals'} = $quals;
 	return bless($self, $class);
 }
-
+sub split{
+###splits the read in two and creates two new fastq objects	
+	my $self = shift;
+	return 0 unless length($self->seq) % 2 == 0;  
+	my $string_1 = substr($self->seq, 0, length($self->seq) / 2) ;
+	my $string_2 = substr($self->seq, length($self->seq) / 2, length($self->seq) / 2 );
+	my $qual_1 = substr($self->quals, 0, length($self->quals) / 2);
+	my $qual_2 = substr($self->quals, length($self->quals) / 2, length($self->quals) / 2 );
+	my $id_1 = $self->id.'_1';
+	my $id_2 = $self->id.'_2';
+	my $qid_1 = $self->qual_id.'_1';
+	my $qid_2 = $self->qual_id.'_2';
+	my $fastq_1 = Fastq->new($id_1,$string_1,$qid_1,$qual_1);
+	my $fastq_2 = Fastq->new($id_2,$string_2,$qid_2,$qual_2);
+	return ($fastq_1, $fastq_2);		
+}
 #getters, returns sequence information to you
 sub seq {
 	my $self = shift;
@@ -106,6 +121,12 @@ Returns the quality line id of the Fastq object
 Returns the quality score line of the Fastq object
 
 	print $fastq->quals;   #prints '!@£$%^&*(()_++_)*'
+
+=item split()
+
+Splits the read and quals in half and returns two new fastq objects with _1 and _2 appended to the ids
+
+my ($split1,$split2) = $fastq->split;
 
 =back
 

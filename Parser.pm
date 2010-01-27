@@ -24,7 +24,7 @@ sub new {
 	my %arg;
 	print Dumper @_;
 	###very messily go through the args array and set up an easier hash..... 
-	for (my $i; $i< scalar(@_); ++$i){
+	for (my $i = 0; $i< scalar(@_); ++$i){
 		if ($_[$i] eq '-format'){
 			$arg{'-format'} = $_[$i+1];
 

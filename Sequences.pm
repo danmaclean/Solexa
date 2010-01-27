@@ -84,7 +84,7 @@ sub split_line_in_two{
 	if (length $line % 2 eq 0 ){
 
 		my $line1 = substr($line, 0, ($line / 2);
-		my $line2 = substr($line, ($line / 2), $line / 2);
+		my $line2 = substr($line, ($line / 2), $line / 2) );
 
 		return ($line1, $line2);
 	}
