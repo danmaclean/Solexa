@@ -23,6 +23,11 @@ sub new {
 	$$self{'quals'} = $quals;
 	return bless($self, $class);
 }
+sub quals_to_sanger{
+	my $self = shift;
+	my $new_qual = _sol2sanger($self->quals);
+	$$self{'quals'} = $new_qual;
+}
 sub split{
 ###splits the read in two and creates two new fastq objects	
 	my $self = shift;
@@ -56,7 +61,18 @@ sub quals{
 	my $self = shift;
 	$$self{'quals'} || 0;
 }
+sub _sol2sanger{
+	my $quals = shift;
+		my @quals = split( '', $quals );
+		my $qual = '';
+		foreach my $q (@quals){
+			my $s = chr(ord($q) - 31);
+			$qual = $qual . $s; 
+			
+		}
+		return $qual;
 
+}
 
 1;
 
@@ -121,6 +137,11 @@ Returns the quality line id of the Fastq object
 Returns the quality score line of the Fastq object
 
 	print $fastq->quals;   #prints '!@£$%^&*(()_++_)*'
+
+=item quals_to_sanger
+
+Alters the quality score of the line to the sanger-fastq standard ***only use if your read is already illumina-fastq standard***
+That is from post pipeline version 1.3.
 
 =item split()
 

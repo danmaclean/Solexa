@@ -55,7 +55,9 @@ sub new {
 				my $start = tell(FILE);
 				$line = encode('UTF-8', $line);
 				$$self{'_index'}{$tmp[0]} = $start - length($line); ##works through the pileup file and records the distance in bytes into the file that each contig starts		     
+							
 			}
+			
 		    close FILE;
 	}
 	elsif ($$self{'format'} =~ /bowtie|bwt/){
@@ -254,7 +256,7 @@ sub _get_pile_maq{
 	my %stack;
 
     my $seekto = $$self{'_index'}{$contig};
-    open FILE, "<$$self{'_file'}";
+    open FILE, "<$$self{'file'}";
     seek(FILE, $seekto, 0);
     while (my $line = <FILE>){
 
