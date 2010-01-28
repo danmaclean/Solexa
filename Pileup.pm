@@ -22,7 +22,7 @@ sub new {
 	my $class = shift;
 	my %arg;
 	###very messily go through the args array and set up an easier hash..... 
-	for (my $i; $i< scalar(@_); ++$i){
+	for (my $i= 0; $i< scalar(@_); ++$i){
 			if ($_[$i] eq '-format'){
 				$arg{'-format'} = $_[$i+1];
 			}
@@ -47,8 +47,8 @@ sub new {
 	$$self{'file'} = $arg{'-file'};
 	
 	if ($$self{'format'} =~ /maq|bwa/){
-		    open FILE, "<$self->file" || die "Can't open maq/bwa file $self->file \n\n";
-			warn "Building a map for a maq file, please wait\n\n";
+		    open FILE, "<$$self{'file'}" || die "Can't open maq/bwa file $$self{'file'} \n\n";
+			warn "Building a map for a maq file $$self{'file'}, please wait\n\n";
 		    while (my $line = <FILE>){
 				my @tmp = split(/\s+/, $line);
 				next if exists $$self{'_index'}{$tmp[0]};
