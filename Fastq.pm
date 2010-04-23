@@ -44,6 +44,12 @@ sub split{
 	my $fastq_2 = Fastq->new($id_2,$string_2,$qid_2,$qual_2);
 	return ($fastq_1, $fastq_2);		
 }
+sub write{
+
+	my $self=shift;
+	my $p = $self->id . "\n" .$self->seq . "\n" . $self->qual_id , "\n" , $self->quals, "\n";
+
+}
 #getters, returns sequence information to you
 sub seq {
 	my $self = shift;

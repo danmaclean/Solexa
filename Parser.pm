@@ -1,6 +1,6 @@
 package Parser;
 #################################
-#Dan MacLean Jun 19th 2009   dan.maclean@tsl.ac.uk
+#Dan MacLeanFeb 14th 2010 dan.maclean@tsl.ac.uk
 #module of methods for dealing with raw solexa reads .. 
 #################################
 use strict;
@@ -10,6 +10,8 @@ use Data::Dumper;
 use Solexa::Fastq;
 use Solexa::Bowtie;
 use Solexa::Soap;
+use Solexa::Maqsnp;
+use Solexa::Novoalign;
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 $VERSION = 0.1;
 @ISA = qw(Exporter);
@@ -22,7 +24,6 @@ $VERSION = 0.1;
 sub new {
 	my $class = shift;
 	my %arg;
-	print Dumper @_;
 	###very messily go through the args array and set up an easier hash..... 
 	for (my $i = 0; $i< scalar(@_); ++$i){
 		if ($_[$i] eq '-format'){
@@ -34,7 +35,7 @@ sub new {
 
 		}
 	}
-	die "unknown format, allowed are bowtie fastq soap\n\n" unless $arg{'-format'} =~ m/bowtie|fastq|soap/i;
+	die "unknown format, allowed are bowtie fastq soap maqsnp \n\n" unless $arg{'-format'} =~ m/bowtie|fastq|soap|maqsnp|novoalign/i;
 	die "no file provided\n\n" unless $arg{'-file'};
 	my $self =  {};
 	$$self{'format'} = $arg{'-format'};
@@ -78,6 +79,110 @@ sub next{
 		return $soap;
 
 
+	}
+	elsif($$self{'format'} =~ m/maqsnp/){
+		my $line = $$self{'handle'}->getline;
+		my @tmp = split(/\t/,$line);
+		my $maqsnp = new Maqsnp($tmp[0],$tmp[1],$tmp[2],$tmp[3],$tmp[4],$tmp[5],$tmp[6],$tmp[7],$tmp[8],$tmp[9],$tmp[10],$tmp[11]);
+		return $maqsnp;
+	
+
+	}
+	elsif($$self{'format'} =~ m/novoalign/i){
+		my $line = '#';
+		while ($line =~ m/^#/){
+			$line = $$self{'handle'}->getline;
+		}
+		my @els = split(/\t/, $line);
+		my $read_header = $els[0];
+		my $endedness = $els[1];
+		my $read_seq = $els[2];
+		my $base_quals = $els[3];
+		my $status = $els[4];
+		my ($align_score, $num_aligns, $align_qual, $aligned_seq_header,$aligned_offset, $strand, $pair, $pair_offset, $pair_strand, $mismatches);
+		if ($status eq 'U'){
+			$align_score = $els[5];
+			$align_qual = $els[6];
+			$aligned_seq_header = $els[7]; $aligned_seq_header =~ s/^>//;
+			$aligned_offset = $els[8];
+			$strand = $els[9];
+			$pair = $els[10];
+			$pair = $aligned_seq_header if $pair eq '.';
+			$pair_offset = $els[11];
+			$pair_strand = $els[12];
+			$mismatches = $els[13];
+			my %ms;
+			if (defined $mismatches){
+				my @t = split(/\s/, $mismatches);
+				foreach my $m (@t){
+					if ($m =~ m/>/){
+						my @a = split(/>/,$m);
+						$a[0] =~ m/(\d+)([ATCGN])/;
+						my $offset = $1;
+						my $orig = $2;
+						$ms{'mismatches'}{$offset}{$orig} = $a[1];
+					}
+					elsif ($m =~ m/\+/){
+						my @a = split(/\+/,$m);
+						$ms{'inserts'}{$a[0]} = $a[1];						
+					}
+					elsif ($m=~ m/-/){
+						my @a = split(/-/,$m);
+						$ms{'deletes'}{$a[0]} = $a[1];						
+					}
+				}
+			}
+			my $novoalign = new Novoalign({'-read_header' => $read_header, '-endedness' => $endedness, '-read_seq' => $read_seq,
+										'-base_quals' => $base_quals, '-status' => $status,  '-align_score' => $align_score, '-align_qual' => $align_qual,
+										'-aligned_seq_header' => $aligned_seq_header, '-aligned_offset' => $aligned_offset, '-strand' => $strand, '-pair' => $pair,
+										 '-pair_offset' => $pair_offset, '-pair_strand' => $pair_strand, '-mismatches' => \%ms}
+			);
+			return $novoalign;
+		}
+		elsif($status eq 'R'){
+			$num_aligns = $els[5];
+			$align_qual = $els[6];
+			$aligned_seq_header = $els[7]; $aligned_seq_header =~ s/^>//;
+			$aligned_offset = $els[8];
+			$strand = $els[9];
+			$pair = $els[10];
+			$pair = $aligned_seq_header if $pair eq '.';
+			$pair_offset = $els[11];
+			$pair_strand = $els[12];
+			$mismatches = $els[13];
+			my %ms;
+			if (defined $mismatches){
+				my @t = split(/\s/, $mismatches);
+				foreach my $m (@t){
+					if ($m=~m/>/){
+						my @a = split(/>/,$m);
+						$a[0] =~ m/(\d+)([ATCGN])/;
+						my $offset = $1;
+						my $orig = $2;
+						$ms{'mismatches'}{$offset}{$orig} = $a[1];
+					}
+					elsif ($m=~ m/\+/){
+						my @a = split(/\+/,$m);
+						$ms{'inserts'}{$a[0]} = $a[1];						
+					}
+					elsif ($m=~ m/-/){
+						my @a = split(/-/,$m);
+						$ms{'deletes'}{$a[0]} = $a[1];						
+					}
+				}
+			}
+			my $novoalign = new Novoalign({'-read_header' => $read_header, '-endedness' => $endedness, '-read_seq' => $read_seq,
+										'-base_quals' => $base_quals, '-status' => $status,  '-number_alignments' => $num_aligns, '-align_qual' => $align_qual,
+										'-aligned_seq_header' => $aligned_seq_header, '-aligned_offset' => $aligned_offset, '-strand' => $strand, '-pair' => $pair,
+										 '-pair_offset' => $pair_offset, '-pair_strand' => $pair_strand, '-mismatches' => \%ms}
+			);
+			return $novoalign;	
+		}
+		else{
+			my $novoalign = new Novoalign({'-read_header' => $read_header, '-endedness' => $endedness, '-read_seq' => $read_seq,
+										'-base_quals' => $base_quals, '-status' => $status});
+			return $novoalign;	
+		}
 	}
 	else{
 

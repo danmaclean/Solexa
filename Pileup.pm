@@ -10,6 +10,7 @@ use Storable qw(nstore retrieve);
 use Encode;
 use Bio::SeqIO;
 use Solexa::Bowtie;
+use Solexa::Novoalign;
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 $VERSION = 0.1;
 @ISA = qw(Exporter);
@@ -22,7 +23,7 @@ sub new {
 	my $class = shift;
 	my %arg;
 	###very messily go through the args array and set up an easier hash..... 
-	for (my $i= 0; $i< scalar(@_); ++$i){
+	for (my $i = 0; $i< scalar(@_); ++$i){
 			if ($_[$i] eq '-format'){
 				$arg{'-format'} = $_[$i+1];
 			}
@@ -33,13 +34,13 @@ sub new {
 				$arg{'-refs'} = $_[$i+1];
 			}
 	}
-	die "unknown alignment format, allowed are bowtie bwt bwa maq soap\n\n" unless $arg{'-format'} =~ m/bowtie|bwt|bwa|maq|soap/i;
+	die "unknown alignment format, allowed are bowtie bwt bwa maq soap novoalign\n\n" unless $arg{'-format'} =~ m/bowtie|bwt|bwa|maq|soap|novoalign/i;
 	die "no alignment file provided or not recognised\n\n" unless $arg{'-file'};
 
 	my $self =  {};
 
-	if ($arg{'-format'} =~ m/bowtie|bwt/){
-		die "no reference file provided, required for bowtie style alignments\n\n" unless $arg{'-refs'};
+	if ($arg{'-format'} =~ m/bowtie|bwt|novoalign/){
+		die "no reference file provided, required for bowtie and novoalign alignments\n\n" unless $arg{'-refs'};
 		$$self{'refs_file'} = $arg{'-refs'};
 	}
 
@@ -48,16 +49,14 @@ sub new {
 	
 	if ($$self{'format'} =~ /maq|bwa/){
 		    open FILE, "<$$self{'file'}" || die "Can't open maq/bwa file $$self{'file'} \n\n";
-			warn "Building a map for a maq file $$self{'file'}, please wait\n\n";
+			warn "Building a map for a maq file, please wait\n\n";
 		    while (my $line = <FILE>){
 				my @tmp = split(/\s+/, $line);
 				next if exists $$self{'_index'}{$tmp[0]};
 				my $start = tell(FILE);
 				$line = encode('UTF-8', $line);
 				$$self{'_index'}{$tmp[0]} = $start - length($line); ##works through the pileup file and records the distance in bytes into the file that each contig starts		     
-							
 			}
-			
 		    close FILE;
 	}
 	elsif ($$self{'format'} =~ /bowtie|bwt/){
@@ -79,6 +78,28 @@ sub new {
 		}
 		
 		
+	}
+	elsif ($$self{'format'} =~ /novoalign/){
+
+		die "Can't open reference sequence file $$self{'refs_file'} \n\n" unless -e $$self{'refs_file'};
+		open FILE, "<$$self{'file'}" || die "Can't open novoalign file $$self{'file'}\n\n";
+		warn "Building a map for a novoalign file, please wait\n\n";
+		while (my $line = <FILE>){
+			next if $line =~ m/^#/;
+			my @tmp = split(/\s+/, $line);
+			next unless $tmp[4] =~ /U|R/;
+			my $aligned_seq_header = $tmp[7];
+			$aligned_seq_header =~ s/^>//;
+			my $start = tell(FILE);
+			$line = encode('UTF-8', $line);
+			push @{$$self{'_index'}{$aligned_seq_header}}, ($start - length($line)); ##works through the bowtie file and records the distance in bytes into the file that each match to each contig starts		     
+		}
+		close FILE;
+		warn "loading reference sequences into memory..\n\n";
+		my $infile = Bio::SeqIO->new(-file => "$$self{'refs_file'}", -format => 'fasta');
+		while (my $seq = $infile->next_seq){
+			$$self{'_references'}{$seq->id} = $seq->seq;
+		}	
 	}
 	return bless($self, $class);
 	
@@ -129,6 +150,9 @@ sub _get_pile{
 	}
 	elsif($self->format =~ /bowtie|bwt/){
 		$self->_get_pile_bowtie($contig);
+	}
+	elsif($self->format =~ /novoalign/){
+		$self->_get_pile_novoalign($contig);
 	}
 	return $self;
 }
@@ -246,7 +270,117 @@ sub _get_pile_bowtie{
 	return $self; 
 }
 
+sub _get_pile_novoalign{
+	my $self = shift;
+	my $contig = shift;
+	my %pileup;
+	my %stack;
+	### get the reference sequence and populate the reference hash
 
+	die "cant find reference sequence ...\n\n" unless exists $$self{'_references'}{$contig};
+	for (my $i = 1; $i<=length($$self{'_references'}{$contig}); $i++){
+			$pileup{$contig}{$i}{'_ref_base'} = substr($$self{'_references'}{$contig}, $i - 1, 1);
+			$pileup{$contig}{$i}{'_coverage_depth'} = 0;
+			$stack{$contig}{$i} = '@'
+	}
+	##novoalign is indexed from 1!! 
+	foreach my $seekto (@{$$self{'_index'}{$contig}}){
+		my $file = $self->file;
+	    open FILE, "<$file";
+	
+	    seek(FILE, $seekto, 0);
+	    my $line = <FILE>;
+		my $nva = _prep_novoalign($line);
+
+		die "mismatched contig name\n\n" unless  $contig eq $nva->aligned_seq_header; 
+
+		my %mm = $nva->mismatches;
+		for (my $i = ($nva->aligned_offset); $i <= $nva->aligned_offset + length($nva->read_seq) - 1; $i++){
+			##increment the read coverage
+
+			$pileup{$contig}{$i}{'_coverage_depth'}++;
+			##make a maq like stack ... 
+			##add the mismatches if any to the stack
+			my $ref = $self->get_ref_base($contig, $i);
+
+			if (exists $mm{'mismatches'}{$i - $nva->aligned_offset }){
+				if ($nva->strand eq 'F'){
+					#if (defined $stack{$contig}{$i} ){
+						 $stack{$contig}{$i} = $stack{$contig}{$i} . uc($mm{'mismatches'}{$i - $nva->aligned_offset}{$ref}); 
+					#	}
+					#else{
+					#	 $stack{$contig}{$i} = '@';
+					#}	
+				}
+				else{
+					#if (defined $stack{$contig}{$i}){
+						#my %conv = { 'A' => 'T'. "T" => "A", "G" => "C", "C" => "G"};
+						$stack{$contig}{$i} = $stack{$contig}{$i} . lc($mm{'mismatches'}{$i - $nva->aligned_offset }{$ref});
+					#}
+					#else {
+					#	 $stack{$contig}{$i} = '@';
+					#}	
+				}
+			}
+			## add the matches to the stack
+			else {
+				if ($nva->strand eq 'F'){
+					#if (defined $stack{$contig}{$i}){
+						 $stack{$contig}{$i} = $stack{$contig}{$i} . '.';
+					#}
+					#else {
+					#	$stack{$contig}{$i} = '@';
+					#}
+				}
+				else {
+					#if (defined $stack{$contig}{$i}){
+						$stack{$contig}{$i} = $stack{$contig}{$i} . ',';
+					#}
+					#else {
+					#	$stack{$contig}{$i} = '@';	
+					#} 
+				}
+			}
+		}
+	}
+	##make the pileup information from the new made stack
+	for (my $i = 1; $i<=length($$self{'_references'}{$contig}); $i++){
+		my $ref = $self->get_ref_base($contig,$i);
+		
+			my $st = $stack{$contig}{$i};
+		#warn $ref, "\t", $st, "\t", $i, "\n";
+			my @al = split(/|/, $st);
+			shift @al;	       
+
+			       #### NB strand information is lost here...! 
+
+			foreach my $b (@al){
+
+		    	if($b =~ m/\./){
+					$pileup{$contig}{$i}{$ref}++;
+
+		    	}
+		    	elsif ($b =~ m/,/){
+					$pileup{$contig}{$i}{$ref}++;
+		    	}
+		    	elsif ($b =~ m/n/i){
+					$pileup{$contig}{$i}{'N'}++;
+		    	}
+		    	elsif ($b eq 'A' or $b eq 'C' or $b eq 'G' or $b eq 'T' ){
+						$pileup{$contig}{$i}{$b}++;
+	    		}
+		    	else {
+					my $u = uc($b);
+					#my $n = $comp{$u};
+					$pileup{$contig}{$i}{$u}++;
+		    	}
+			}
+		
+	}
+	$$self{'_pileup'}= \%pileup;
+	$$self{'_stack'}= \%stack;
+	return $self; 
+}
 
 sub _get_pile_maq{
     my $self = shift;
@@ -389,7 +523,7 @@ sub get_ref_base{
     	}
 		return $$self{'_pileup'}{$cont}{$pos}{'_ref_base'};
 	}
-	elsif ($self->format =~ /bwt|bowtie/){
+	elsif ($self->format =~ /bwt|bowtie|novoalign/){
 		return substr($$self{'_references'}{$cont}, $pos - 1, 1);
 	}
 }
@@ -463,10 +597,14 @@ sub nt_coverage{ ## returns hash of number of each nt called at a position
 
     $self->_get_pile($cont) unless exists $$self{'_pileup'}{$cont};
 
-    my %t =  %{$$self{'_pileup'}{$cont}{$pos}};
-
-    return %t;
-
+	if (defined $$self{'_pileup'}{$cont}{$pos}){
+    	my %t =  %{$$self{'_pileup'}{$cont}{$pos}};
+    	return %t;
+	}
+	else {
+		my %t = {};
+		return %t;
+	}
 }
 sub get_consensus{
 	my $self = shift;
@@ -959,6 +1097,100 @@ sub html_style{
 
 
     }
+sub _prep_novoalign{
+	my $line = shift;
+	my @els = split(/\t/, $line);
+	my $read_header = $els[0];
+	my $endedness = $els[1];
+	my $read_seq = $els[2];
+	my $base_quals = $els[3];
+	my $status = $els[4];
+	my ($align_score, $num_aligns, $align_qual, $aligned_seq_header,$aligned_offset, $strand, $pair, $pair_offset, $pair_strand, $mismatches);
+	if ($status eq 'U'){
+		$align_score = $els[5];
+		$align_qual = $els[6];
+		$aligned_seq_header = $els[7]; $aligned_seq_header =~ s/^>//;
+		$aligned_offset = $els[8];
+		$strand = $els[9];
+		$pair = $els[10];
+		$pair = $aligned_seq_header if $pair eq '.';
+		$pair_offset = $els[11];
+		$pair_strand = $els[12];
+		$mismatches = $els[13];
+		my %ms;
+		if (defined $mismatches){
+			my @t = split(/\s/, $mismatches);
+			foreach my $m (@t){
+				if ($m =~ m/>/){
+					my @a = split(/>/,$m);
+					$a[0] =~ m/(\d+)([ATCGN])/;
+					my $offset = $1;
+					my $orig = $2;
+					$ms{'mismatches'}{$offset}{$orig} = $a[1];
+				}
+				elsif ($m =~ m/\+/){
+					my @a = split(/\+/,$m);
+					$ms{'inserts'}{$a[0]} = $a[1];						
+				}
+				elsif ($m=~ m/-/){
+					my @a = split(/-/,$m);
+					$ms{'deletes'}{$a[0]} = $a[1];						
+				}
+			}
+		}
+		my $novoalign = new Novoalign({'-read_header' => $read_header, '-endedness' => $endedness, '-read_seq' => $read_seq,
+									'-base_quals' => $base_quals, '-status' => $status,  '-align_score' => $align_score, '-align_qual' => $align_qual,
+									'-aligned_seq_header' => $aligned_seq_header, '-aligned_offset' => $aligned_offset, '-strand' => $strand, '-pair' => $pair,
+									 '-pair_offset' => $pair_offset, '-pair_strand' => $pair_strand, '-mismatches' => \%ms}
+		);
+		return $novoalign;
+	}
+	elsif($status eq 'R'){
+		$num_aligns = $els[5];
+		$align_qual = $els[6];
+		$aligned_seq_header = $els[7]; $aligned_seq_header =~ s/^>//;
+		$aligned_offset = $els[8];
+		$strand = $els[9];
+		$pair = $els[10];
+		$pair = $aligned_seq_header if $pair eq '.';
+		$pair_offset = $els[11];
+		$pair_strand = $els[12];
+		$mismatches = $els[13];
+		my %ms;
+		if (defined $mismatches){
+			my @t = split(/\s/, $mismatches);
+			foreach my $m (@t){
+				if ($m=~m/>/){
+					my @a = split(/>/,$m);
+					$a[0] =~ m/(\d+)([ATCGN])/;
+					my $offset = $1;
+					my $orig = $2;
+					$ms{'mismatches'}{$offset}{$orig} = $a[1];
+				}
+				elsif ($m=~ m/\+/){
+					my @a = split(/\+/,$m);
+					$ms{'inserts'}{$a[0]} = $a[1];						
+				}
+				elsif ($m=~ m/-/){
+					my @a = split(/-/,$m);
+					$ms{'deletes'}{$a[0]} = $a[1];						
+				}
+			}
+		}
+		my $novoalign = new Novoalign({'-read_header' => $read_header, '-endedness' => $endedness, '-read_seq' => $read_seq,
+									'-base_quals' => $base_quals, '-status' => $status,  '-number_alignments' => $num_aligns, '-align_qual' => $align_qual,
+									'-aligned_seq_header' => $aligned_seq_header, '-aligned_offset' => $aligned_offset, '-strand' => $strand, '-pair' => $pair,
+									 '-pair_offset' => $pair_offset, '-pair_strand' => $pair_strand, '-mismatches' => \%ms}
+		);
+		return $novoalign;	
+	}
+	else{
+		my $novoalign = new Novoalign({'-read_header' => $read_header, '-endedness' => $endedness, '-read_seq' => $read_seq,
+									'-base_quals' => $base_quals, '-status' => $status});
+		return $novoalign;	
+	}
+	
+}
 
 }
 
@@ -975,7 +1207,7 @@ Dan MacLean (dan.maclean@tsl.ac.uk)
 =head1 SYNOPSIS
 
 	use Solexa::Pileup;
-	my $pileup = new Pileup(/home/macleand/Desktop/mypile);
+	$pileup = new Pileup(-file => $file, -format => 'maq')
 
 
 =head1 DESCRIPTION
@@ -1069,7 +1301,7 @@ Returns the length of the contig
 
 Returns hash with nucleotides as keys and number of times that nucleotide called at a position on a contig
 
-	my %coverage = $pileup->nt_cpverage('contig1', 1234);
+	my %coverage = $pileup->nt_coverage('contig1', 1234);
 
 =item get_consensus(contig, position)
 

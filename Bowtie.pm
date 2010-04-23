@@ -5,7 +5,7 @@ package Bowtie;
 #################################
 use strict;
 use Exporter;
-
+use Digest::MD5 qw(md5 md5_hex md5_base64);
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 $VERSION = 0.1;
 @ISA = qw(Exporter);
@@ -62,7 +62,7 @@ sub new {
 ##accessors
 sub readname{ 
     my $self = shift;
-    return $$self{'_readname'};
+    return $$self{'_read_name'};
 
 }
 
@@ -109,7 +109,24 @@ sub mismatches{
 	return %{$$self{'_mismatches'}};
     }
 }
-
+sub gee_fu_gff{
+	my $self = shift;
+	my $id = md5_hex(sort %$self);
+	my $seq = quote_string($self->readseq);
+	my $qual = quote_string($self->readqual);
+	my $group = "ID=$id;Note=<sequence>$seq</sequence><quality>$qual</quality>"; 
+	my $gff = $self->targetname . "\t" . 'bowtie' . "\t" . 'read' . "\t" . $self->alignstart . "\t" . $self->alignstop . "\t" . '.' . "\t" . $self->strand . "\t" . '.' . "\t" . $group;
+	return $gff;
+}
+sub quote_string{
+	my $string = shift;
+	$string =~ s/%/%25/g;
+	$string =~ s/;/%3B/g;
+	$string =~ s/=/%3D/g;
+	$string =~ s/&/%26/g;
+	$string =~ s/,/%2C/g;
+	return $string;
+}
 
 1;
 
@@ -211,6 +228,11 @@ must be read from the opposite end of the read. The hash looks like this...
 		'124' => {'C => 'T'}
 		}
 
+=item gee_fu_gff()
+
+Returns a gee_fu compatible gff string of the current object
+
+	my $gff = $bwt->gee_fu_gff;
 
 =back
 
