@@ -3,6 +3,10 @@ package Parser;
 #Dan MacLeanFeb 14th 2010 dan.maclean@tsl.ac.uk
 #module of methods for dealing with raw solexa reads .. 
 #################################
+
+####Just adding a pointless comment####
+
+
 use strict;
 use Exporter;
 use FileHandle;
