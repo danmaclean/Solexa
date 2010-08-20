@@ -1,8 +1,12 @@
 package Parser;
 #################################
-#Dan MacLean Jun 19th 2009   dan.maclean@tsl.ac.uk
+#Dan MacLeanFeb 14th 2010 dan.maclean@tsl.ac.uk
 #module of methods for dealing with raw solexa reads .. 
 #################################
+
+####Just adding a pointless comment####
+
+
 use strict;
 use Exporter;
 use FileHandle;
@@ -11,6 +15,8 @@ use Solexa::Fastq;
 use Solexa::Bowtie;
 use Solexa::Novoalign;
 use Solexa::Soap;
+use Solexa::Maqsnp;
+use Solexa::Novoalign;
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 $VERSION = 0.1;
 @ISA = qw(Exporter);
@@ -23,7 +29,6 @@ $VERSION = 0.1;
 sub new {
 	my $class = shift;
 	my %arg;
-	print Dumper @_;
 	###very messily go through the args array and set up an easier hash..... 
 	for (my $i = 0; $i< scalar(@_); ++$i){
 		if ($_[$i] eq '-format'){
@@ -35,7 +40,9 @@ sub new {
 
 		}
 	}
-	die "unknown format, allowed are bowtie fastq soap novoalign\n\n" unless $arg{'-format'} =~ m/bowtie|fastq|soap|novoalign/i;
+
+	die "unknown format, allowed are bowtie fastq soap maqsnp novoalign \n\n" unless $arg{'-format'} =~ m/bowtie|fastq|soap|maqsnp|novoalign/i;
+
 	die "no file provided\n\n" unless $arg{'-file'};
 	my $self =  {};
 	$$self{'format'} = $arg{'-format'};
@@ -80,6 +87,16 @@ sub next{
 
 
 	}
+
+	elsif($$self{'format'} =~ m/maqsnp/){
+		my $line = $$self{'handle'}->getline;
+		my @tmp = split(/\t/,$line);
+		my $maqsnp = new Maqsnp($tmp[0],$tmp[1],$tmp[2],$tmp[3],$tmp[4],$tmp[5],$tmp[6],$tmp[7],$tmp[8],$tmp[9],$tmp[10],$tmp[11]);
+		return $maqsnp;
+	
+
+	}
+
 	elsif($$self{'format'} =~ m/novoalign/i){
 		my $line = '#';
 		while ($line =~ m/^#/){

@@ -1,4 +1,4 @@
-package Fastq;
+package Maqsnp;
 
 use strict;
 use Exporter;
@@ -15,77 +15,79 @@ $VERSION = 0.1;
 sub new {
 	my $self = {};
 	my $class = shift;
-	my ($id,$seq,$qual_id,$quals) = @_;
-	chomp($id,$seq,$qual_id,$quals);
-	$$self{'id'} = $id;
-	$$self{'seq'} = $seq;
-	$$self{'qual_id'} = $qual_id;
-	$$self{'quals'} = $quals;
+	my ($chr, $pos, $ref_base, $consensus, $phred_consensus_qual, $read_depth, $average_hits, $highest_map_qual, $min_consensus_qual, $second_best, $log_likelihood, $third_best) = @_;
+	
+	$$self{'chromosome'} = $chr;
+	$$self{'pos'} = $pos;
+	$$self{'ref_base'} = $ref_base;
+	$$self{'consensus'} = $consensus;
+	$$self{'phred_consensus_qual'} = $phred_consensus_qual;
+	$$self{'read_depth'} = $read_depth;
+	$$self{'average_hits'} = $average_hits;
+	$$self{'highest_map'} = $highest_map_qual;
+	$$self{'min_consensus_qual'} = $min_consensus_qual;
+	$$self{'second_best'} = $second_best;
+	$$self{'log_likelihood'} = $log_likelihood;
+	$$self{'third_best'} = $third_best;
 	return bless($self, $class);
 }
-sub quals_to_sanger{
-	my $self = shift;
-	my $new_qual = _sol2sanger($self->quals);
-	$$self{'quals'} = $new_qual;
-}
-sub split{
-###splits the read in two and creates two new fastq objects	
-	my $self = shift;
-	return 0 unless length($self->seq) % 2 == 0;  
-	my $string_1 = substr($self->seq, 0, length($self->seq) / 2) ;
-	my $string_2 = substr($self->seq, length($self->seq) / 2, length($self->seq) / 2 );
-	my $qual_1 = substr($self->quals, 0, length($self->quals) / 2);
-	my $qual_2 = substr($self->quals, length($self->quals) / 2, length($self->quals) / 2 );
-	my $id_1 = $self->id.'_1';
-	my $id_2 = $self->id.'_2';
-	my $qid_1 = $self->qual_id.'_1';
-	my $qid_2 = $self->qual_id.'_2';
-	my $fastq_1 = Fastq->new($id_1,$string_1,$qid_1,$qual_1);
-	my $fastq_2 = Fastq->new($id_2,$string_2,$qid_2,$qual_2);
-	return ($fastq_1, $fastq_2);		
-}
-sub write{
 
-	my $self=shift;
-	my $p = $self->id . "\n" .$self->seq . "\n" . $self->qual_id , "\n" , $self->quals, "\n";
 
-}
-#getters, returns sequence information to you
-sub seq {
+#getters, returns  information to you
+sub chromosome {
 	my $self = shift;
-	$$self{'seq'} || 0;
+	$$self{'chromosome'} || 0;
 }
-sub id {
+sub position {
 	my $self = shift;
-	$$self{'id'} || 0;
+	$$self{'pos'} || 0;
 }
-sub qual_id{
+sub ref_base{
 	my $self = shift;
-	$$self{'qual_id'} || 0;
+	$$self{'ref_base'} || 0;
 }
-sub quals{
+sub consensus{
 	my $self = shift;
-	$$self{'quals'} || 0;
+	$$self{'consensus'} || 0;
 }
-sub _sol2sanger{
-	my $quals = shift;
-		my @quals = split( '', $quals );
-		my $qual = '';
-		foreach my $q (@quals){
-			my $s = chr(ord($q) - 31);
-			$qual = $qual . $s; 
-			
-		}
-		return $qual;
-
+sub phred_consensus_qual {
+	my $self = shift;
+	$$self{'phred_consensus_qual'} || 0;
 }
-
+sub read_depth {
+	my $self = shift;
+	$$self{'read_depth'} || 0;
+}
+sub average_hits{
+	my $self = shift;
+	$$self{'average_hits'} || 0;
+}
+sub highest_map{
+	my $self = shift;
+	$$self{'highest_map'} || 0;
+}
+sub min_consensus_qual {
+	my $self = shift;
+	$$self{'min_consensus_qual'} || 0;
+}
+sub second_best {
+	my $self = shift;
+	$$self{'second_best'} || 0;
+}
+sub log_likelihood{
+	my $self = shift;
+	$$self{'log_likelihood'} || 0;
+}
+sub third_best{
+	my $self = shift;
+	$$self{'third_best'} || 0;
+}
 1;
 
 
 =head1 NAME
 
-Fastq - module that creates object representing fastq sequence files
+Maqsnp - module that creates object representing maq snps from cns2snp
 
 =head1 AUTHOR
 
@@ -93,10 +95,10 @@ Dan MacLean (dan.maclean@tsl.ac.uk)
 
 =head1 SYNOPSIS
 
-	use Solexa::Fastq;
-	my $fastq = new Fastq($id, $sequence, $qual_id, $quals);
-	print $fastq->seq; #prints out the sequence line
-	print $fastq->qual_id; #prints the quality line id
+	use Solexa::Maqsnp
+	my $snp = new Fastq($chr, $pos, $ref_base, $consensus, $phred_consensus_qual, $read_depth, $average_hits, $highest_map_qual, $min_consensus_qual, $second_best, $log_likelihood, $third_best);
+	print $snp->consensus #prints out the consensus base
+	print $snp->second_best; #prints the second best base call
 
 =head1 DESCRIPTION
 
