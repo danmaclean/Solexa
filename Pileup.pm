@@ -34,7 +34,7 @@ sub new {
 				$arg{'-refs'} = $_[$i+1];
 			}
 	}
-	die "unknown alignment format, allowed are bowtie bwt bwa maq soap novoalign\n\n" unless $arg{'-format'} =~ m/bowtie|bwt|bwa|maq|soap|novoalign/i;
+	die "unknown alignment format, allowed are bowtie bwt bwa maq soap novoalign\n\n" unless $arg{'-format'} =~ m/bowtie|bwt|bwa|maq|soap|novoalign|sam/i;
 	die "no alignment file provided or not recognised\n\n" unless $arg{'-file'};
 
 	my $self =  {};
@@ -59,6 +59,60 @@ sub new {
 			}
 		    close FILE;
 	}
+	
+	elsif ($$self{'format'} =~ /sam/)
+	{
+		#eg sam line: PGSC0003DMB000000008    94248   G       11      ,$.,,,,...,.    BABA;6BBB@B
+		#	      Chromosome	     Co-ord  Refbase  nReads  Read bases      Base quality
+		#sam is different to bwa in that it has an extra (last) columm of base qualities and that the read bases are coded differently
+		
+		open FILE, "<$$self{'file'}" || die "Can't open sam file $$self{'file'} \n\n";
+		warn "Building a map for a sam file, please wait\n\n";
+		while (my $line = <FILE>)
+		{
+			#change the sam format into maq format
+			my ($contig, $coord_column, $ref_base_column, $cvrg_column, $read_bases_column, $base_quality_column) = split (/\t/, $line);
+			#print "0 = $read_bases_column\n";
+			next if $ref_base_column eq "*"; # skip indel lines
+			my $read_bases = $read_bases_column;
+			
+			my $base_quality = $base_quality_column;
+			if ($read_bases =~ m/[\$\^\+-]/) {
+				$read_bases =~ s/\^.//g; #removing the start of the read segement mark
+				$read_bases =~ s/\$//g; #removing end of the read segment mark
+				while ($read_bases =~ m/[\+-]{1}(\d+)/g) {
+					my $indel_len = $1;
+					$read_bases =~ s/[\+-]{1}$indel_len.{$indel_len}//; # remove indel info from read base field
+				}
+			}
+			chomp $base_quality;
+			#print "1 = $read_bases\n";
+			#print length($read_bases)," ", length($base_quality),"\n";     
+			# after removing read block and indel data the length of read_base 
+			# field should identical to the length of base_quality field
+			if ( length($read_bases) != length($base_quality) )
+			{
+				next;
+			}
+			
+			my @bases = split //, $read_bases;
+			#add the @ to the start of the readbases
+			$read_bases = "@".$read_bases;
+			$read_bases_column  = $read_bases;
+			#print "1 = $read_bases_column\n";       
+			$line = join("\t", $contig, $coord_column, $ref_base_column, $cvrg_column, $read_bases_column);
+			#print "$line\n";
+			#now that we have maq format, we can continue as if it was a maq pileup
+			my @tmp = split(/\s+/, $line);
+			next if exists $$self{'_index'}{$tmp[0]};
+			my $start = tell(FILE);
+			$line = encode('UTF-8', $line);
+			$$self{'_index'}{$tmp[0]} = $start - length($line); ##works through the pileup file and records the distance in bytes into the file that each contig starts		     
+		}
+		close FILE;
+			
+	}
+	
 	elsif ($$self{'format'} =~ /bowtie|bwt/){
 
 		die "Can't open reference sequence file $$self{'refs_file'} \n\n" unless -e $$self{'refs_file'};
@@ -145,7 +199,7 @@ sub refs_file{
 sub _get_pile{
 	my $self = shift;
 	my $contig = shift;
-	if ($self->format =~ /maq|bwa/){
+	if ($self->format =~ /maq|bwa|sam/){
 		$self->_get_pile_maq($contig);
 	}
 	elsif($self->format =~ /bowtie|bwt/){

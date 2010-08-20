@@ -4,7 +4,7 @@ package Parser;
 #module of methods for dealing with raw solexa reads .. 
 #################################
 
-####Just adding a pointless comment####
+
 
 
 use strict;

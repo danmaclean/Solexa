@@ -36,10 +36,14 @@ sub split{
 	my $string_2 = substr($self->seq, length($self->seq) / 2, length($self->seq) / 2 );
 	my $qual_1 = substr($self->quals, 0, length($self->quals) / 2);
 	my $qual_2 = substr($self->quals, length($self->quals) / 2, length($self->quals) / 2 );
-	my $id_1 = $self->id.'_1';
-	my $id_2 = $self->id.'_2';
-	my $qid_1 = $self->qual_id.'_1';
-	my $qid_2 = $self->qual_id.'_2';
+	#my $id_1 = $self->id.'_1';
+	#my $id_2 = $self->id.'_2';
+	#my $qid_1 = $self->qual_id.'_1';
+	#my $qid_2 = $self->qual_id.'_2';
+	my $id_1 = $self->id.'/1';
+	my $id_2 = $self->id.'/2';
+	my $qid_1 = $self->qual_id.'/1';
+	my $qid_2 = $self->qual_id.'/2';
 	my $fastq_1 = Fastq->new($id_1,$string_1,$qid_1,$qual_1);
 	my $fastq_2 = Fastq->new($id_2,$string_2,$qid_2,$qual_2);
 	return ($fastq_1, $fastq_2);		
