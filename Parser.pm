@@ -9,6 +9,7 @@ use FileHandle;
 use Data::Dumper;
 use Solexa::Fastq;
 use Solexa::Bowtie;
+use Solexa::Novoalign;
 use Solexa::Soap;
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
 $VERSION = 0.1;
